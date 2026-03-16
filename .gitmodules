@@ -1,0 +1,6 @@
+[submodule "parca"]
+	path = parca
+	url = git@github.com:/parca-dev/parca
+[submodule "googleapis"]
+	path = googleapis
+	url = https://github.com/googleapis/googleapis

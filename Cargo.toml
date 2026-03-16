@@ -1,0 +1,25 @@
+[package]
+name = "polarsignals_module"
+version = "0.1.0"
+edition = "2024"
+
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1.0.100"
+arrow = { version = "58.0.0", features = ["ipc", "ipc_compression"] }
+emacs = "0.19.0"
+http = "1.4.0"
+oauth2 = { version = "5.0.0", features = ["reqwest-blocking"] }
+prost = "0.14.3"
+prost-types = "0.14.3"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.50.0", features = ["full"] }
+tonic = { version = "0.14.5", features = ["tls-ring", "tls-webpki-roots"] }
+tonic-prost = "0.14.5"
+url = "2.5.8"
+
+[build-dependencies]
+tonic-prost-build = "0.14"
