@@ -42,6 +42,12 @@ jobs:
       - name: Install cargo-zigbuild
         run: cargo install --locked cargo-zigbuild
 
+      - name: Embed version string
+        run: |
+          VERSION_NAME=$(git describe --tags --exact-match 2>/dev/null || git rev-parse HEAD)
+          export VERSION_NAME
+          gawk -f embed-version.awk -i inplace ./polarsignals.el
+          gawk -f embed-version.awk -i inplace ./src/lib.rs
       - name: Build
         run: cargo zigbuild --release --target ${{ matrix.target }}
 
@@ -50,9 +56,10 @@ jobs:
           mkdir -p dist
           SO=$(ls target/${{ matrix.target }}/release/*.so | head -n1)
           cp "$SO" "dist/$(basename "$SO" .so)-${{ matrix.target }}.so"
+          cp polarsignals.el README.md dist/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: module-${{ matrix.target }}
-          path: dist/*.so
+          path: dist/*

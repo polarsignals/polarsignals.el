@@ -26,6 +26,11 @@
 
 (defconst polarsignals/auth-refresh-buffer (* 60 10))
 
+(defconst polarsignals/required-module-version
+  ;; nvfuwlvlpl
+  nil
+  )
+
 (defcustom polarsignals/default-query polarsignals/cpu-time-query
   "The default query for Polar Signals"
   :group 'polarsignals

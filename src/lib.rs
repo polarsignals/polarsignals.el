@@ -221,6 +221,14 @@ fn source_query<'e>(
     env.call("list", &result)
 }
 
+#[defun]
+fn version() -> emacs::Result<&'static str> {
+    Ok(
+        // nvfuwlvlpl
+        "",
+    )
+}
+
 emacs::plugin_is_GPL_compatible!();
 #[emacs::module(name = "polarsignals-module")]
 fn init(_: &Env) -> emacs::Result<()> {
