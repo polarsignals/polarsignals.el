@@ -11,11 +11,11 @@ symlink : $(modtarget)
 
 target/debug/libpolarsignals_module.so :
 	cargo build	
-	readelf -SW target/debug/libpolarsignals_module.so | grep -q '\.debug_gdb_scripts' || objcopy --add-section .debug_gdb_scripts=<(echo -ne "\x01gdb_load_rust_pretty_printers.py\0") target/debug/libpolarsignals_module.so
+	readelf -SW target/debug/libpolarsignals_module.so | grep -q '\.debug_gdb_scripts' || objcopy --add-section .debug_gdb_scripts=debug_gdb_scripts.bin target/debug/libpolarsignals_module.so
 
 target/release/libpolarsignals_module.so :
 	cargo build --release
-	readelf -SW target/release/libpolarsignals_module.so | grep -q '\.debug_gdb_scripts' || objcopy --add-section .debug_gdb_scripts=<(echo -ne "\x01gdb_load_rust_pretty_printers.py\0") target/release/libpolarsignals_module.so
+	readelf -SW target/release/libpolarsignals_module.so | grep -q '\.debug_gdb_scripts' || objcopy --add-section .debug_gdb_scripts=debug_gdb_scripts.bin target/release/libpolarsignals_module.so
 
 .PHONY : clean
 clean :
