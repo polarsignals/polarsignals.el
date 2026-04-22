@@ -1,7 +1,13 @@
 use arrow::array::Array;
 use emacs::{Env, FromLisp, IntoLisp, Value, defun};
 use std::collections::HashMap;
+use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+fn runtime() -> &'static tokio::runtime::Runtime {
+    static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    RT.get_or_init(|| tokio::runtime::Runtime::new().expect("failed to create tokio runtime"))
+}
 
 pub mod parca {
     pub mod metastore {
@@ -22,12 +28,6 @@ pub mod parca {
 }
 
 mod auth;
-
-#[defun]
-fn tst() -> emacs::Result<usize> {
-    println!("Hello, world!");
-    Ok(42)
-}
 
 struct ElispTime(SystemTime);
 
@@ -86,9 +86,7 @@ fn source_query<'e>(
         query_service_client::QueryServiceClient,
     };
 
-    // TODO - only start the runtime if it has already been started.
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| anyhow::anyhow!("failed to create tokio runtime: {e}"))?;
+    let rt = runtime();
 
     let record = rt.block_on(async {
         let tls = tonic::transport::ClientTlsConfig::new().with_enabled_roots();
