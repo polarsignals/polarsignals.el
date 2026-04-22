@@ -50,15 +50,46 @@
   :group 'polarsignals
   :type 'color)
 
+;; TODO - understand this, claude wrote it
 (defun polarsignals/blended-color (percent)
-  (cl-flet ((wavg (x y)
-              (+ (* y (/ percent 100.0))
-                 (* x (/ (- 100 percent) 100.0)))))
+  (cl-flet ((lerp (a b) (+ a (* (- b a) (/ percent 100.0))))
+            (rgb-to-hsv (r g b)
+              (let* ((cmax (max r g b))
+                     (cmin (min r g b))
+                     (delta (- cmax cmin))
+                     (h (cond ((= delta 0.0) 0.0)
+                              ((= cmax r) (* 60.0 (mod (/ (- g b) delta) 6.0)))
+                              ((= cmax g) (* 60.0 (+ (/ (- b r) delta) 2.0)))
+                              (t          (* 60.0 (+ (/ (- r g) delta) 4.0)))))
+                     (s (if (= cmax 0.0) 0.0 (/ delta cmax)))
+                     (v cmax))
+                (list h s v)))
+            (hsv-to-rgb (h s v)
+              (let* ((c (* v s))
+                     (x (* c (- 1.0 (abs (- (mod (/ h 60.0) 2.0) 1.0)))))
+                     (m (- v c))
+                     (rgb1 (cond ((< h 60.0)  (list c x 0.0))
+                                 ((< h 120.0) (list x c 0.0))
+                                 ((< h 180.0) (list 0.0 c x))
+                                 ((< h 240.0) (list 0.0 x c))
+                                 ((< h 300.0) (list x 0.0 c))
+                                 (t           (list c 0.0 x)))))
+                (mapcar (lambda (comp) (+ comp m)) rgb1))))
     (-let* (((r g b) (color-values (face-foreground 'default)))
             ((tr tg tb) (color-values polarsignals/target-foreground-color))
-            ((br bg bb) (list (wavg r tr) (wavg g tg) (wavg b tb))))
-      ;; 65535 / 255 = 257
-      (format "#%02x%02x%02x" (/ br 257.0) (/ bg 257.0) (/ bb 257.0)))))
+            ;; color-values returns 0-65535, normalize to 0.0-1.0
+            ((h1 s1 v1) (rgb-to-hsv (/ r 65535.0) (/ g 65535.0) (/ b 65535.0)))
+            ((h2 s2 v2) (rgb-to-hsv (/ tr 65535.0) (/ tg 65535.0) (/ tb 65535.0)))
+            ;; take the shortest path around the hue circle
+            (hdiff (- h2 h1))
+            (hdiff (cond ((> hdiff 180.0) (- hdiff 360.0))
+                         ((< hdiff -180.0) (+ hdiff 360.0))
+                         (t hdiff)))
+            (bh (mod (+ h1 (* hdiff (/ percent 100.0))) 360.0))
+            (bs (lerp s1 s2))
+            (bv (lerp v1 v2))
+            ((br bg bb) (hsv-to-rgb bh bs bv)))
+      (format "#%02x%02x%02x" (* br 255.0) (* bg 255.0) (* bb 255.0)))))
 
 
 ;; TODO - should we close it after a while?
