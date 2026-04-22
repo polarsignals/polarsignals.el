@@ -1,19 +1,17 @@
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use emacs::{IntoLisp, defun};
-use oauth2::basic::{BasicClient, BasicErrorResponseType, BasicTokenType};
+use oauth2::basic::{BasicErrorResponseType, BasicTokenType};
 use oauth2::{
-    AuthUrl, AuthorizationCode, Client, ClientId, ClientSecret, CsrfToken, EmptyExtraTokenFields,
+    AuthUrl, AuthorizationCode, Client, ClientId, CsrfToken, EmptyExtraTokenFields,
     EndpointNotSet, EndpointSet, PkceCodeChallenge, RedirectUrl, RevocationErrorResponseType,
     Scope, StandardErrorResponse, StandardRevocableToken, StandardTokenIntrospectionResponse,
     StandardTokenResponse, TokenResponse, TokenUrl,
 };
 use oauth2::{PkceCodeVerifier, reqwest};
 use serde::{Deserialize, Serialize};
-use tonic::client;
 use rustls::{ClientConfig, KeyLogFile};
-use url::Url;
 
 const PS_AUTH_URL: &str = "https://identity.polarsignals.com/auth";
 const PS_TOKEN_URL: &str = "https://identity.polarsignals.com/token";
