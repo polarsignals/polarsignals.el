@@ -40,3 +40,14 @@ jobs:
       - name: Build
         run: cargo zigbuild --release --target ${{ matrix.target }}
 
+      - name: Stage artifact
+        run: |
+          mkdir -p dist
+          SO=$(ls target/${{ matrix.target }}/release/*.so | head -n1)
+          cp "$SO" "dist/$(basename "$SO" .so)-${{ matrix.target }}.so"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: module-${{ matrix.target }}
+          path: dist/*.so
