@@ -1,15 +1,18 @@
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use emacs::{IntoLisp, defun};
 use oauth2::basic::{BasicClient, BasicErrorResponseType, BasicTokenType};
 use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, EmptyExtraTokenFields,
+    AuthUrl, AuthorizationCode, Client, ClientId, ClientSecret, CsrfToken, EmptyExtraTokenFields,
     EndpointNotSet, EndpointSet, PkceCodeChallenge, RedirectUrl, RevocationErrorResponseType,
     Scope, StandardErrorResponse, StandardRevocableToken, StandardTokenIntrospectionResponse,
     StandardTokenResponse, TokenResponse, TokenUrl,
 };
 use oauth2::{PkceCodeVerifier, reqwest};
 use serde::{Deserialize, Serialize};
+use tonic::client;
+use rustls::{ClientConfig, KeyLogFile};
 use url::Url;
 
 const PS_AUTH_URL: &str = "https://identity.polarsignals.com/auth";
@@ -77,6 +80,27 @@ impl<'e> IntoLisp<'e> for TokenResult {
     }
 }
 
+fn make_token_result(
+    token_response: StandardTokenResponse<ExtraTokenFields, BasicTokenType>,
+) -> emacs::Result<TokenResult> {
+    let access = token_response.access_token().secret().clone();
+    let refresh = token_response
+        .refresh_token()
+        .map(|rt| rt.secret().clone())
+        .ok_or_else(|| anyhow::anyhow!("no refresh token"))?;
+
+    let valid_until = token_response
+        .expires_in()
+        .map(|ei| SystemTime::now() + ei)
+        .ok_or_else(|| anyhow::anyhow!("no expires in"))?;
+
+    Ok(TokenResult {
+        access,
+        refresh,
+        valid_until,
+    })
+}
+
 #[defun]
 fn resume(pa: &mut Option<PendingAuth>, code: String) -> emacs::Result<TokenResult> {
     let PendingAuth {
@@ -99,44 +123,76 @@ fn resume(pa: &mut Option<PendingAuth>, code: String) -> emacs::Result<TokenResu
         .expect("Client should build");
 
     // Now you can trade it for an access token.
-    let token_result = client
+    let token_response = client
         .exchange_code(AuthorizationCode::new(code))
         // Set the PKCE code verifier.
         .set_pkce_verifier(pkce_verifier)
         .request(&http_client)?;
 
-    let access = token_result.access_token().secret().clone();
-    let refresh = token_result
-        .refresh_token()
-        .map(|rt| rt.secret().clone())
-        .ok_or_else(|| anyhow::anyhow!("no refresh token"))?;
+    make_token_result(token_response)
+}
 
-    let valid_until = token_result
-        .expires_in()
-        .map(|ei| SystemTime::now() + ei)
-        .ok_or_else(|| anyhow::anyhow!("no expires in"))?;
+#[defun]
+pub fn begin_refresh(r: String) -> emacs::Result<TokenResult> {
+    let client = mk_client()?;
 
-    Ok(TokenResult {
-        access,
-        refresh,
-        valid_until,
-    })
+    let r = oauth2::RefreshToken::new(r);
+    let req = client.exchange_refresh_token(&r);
+
+    let root_store = rustls::RootCertStore::from_iter(
+    webpki_roots::TLS_SERVER_ROOTS
+        .iter()
+        .cloned(),
+    );
+    let mut config = ClientConfig::builder()        
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+
+    config.key_log = Arc::new(KeyLogFile::new());    
+
+    
+    let http_client = reqwest::blocking::ClientBuilder::new()
+        // Following redirects opens the client up to SSRF vulnerabilities.
+        .redirect(reqwest::redirect::Policy::none())
+        .use_preconfigured_tls(config)
+        .build()
+        .expect("Client should build");
+
+    let x = req.request(&http_client)?;
+    make_token_result(x)
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct ExtraTokenFields {}
 
-impl oauth2::ExtraTokenFields for ExtraTokenFields {}
-#[defun(user_ptr)]
-pub fn begin() -> emacs::Result<Option<PendingAuth>> {
+fn mk_client() -> emacs::Result<
+    Client<
+        StandardErrorResponse<BasicErrorResponseType>,
+        StandardTokenResponse<ExtraTokenFields, BasicTokenType>,
+        StandardTokenIntrospectionResponse<EmptyExtraTokenFields, BasicTokenType>,
+        StandardRevocableToken,
+        StandardErrorResponse<RevocationErrorResponseType>,
+        EndpointSet,
+        EndpointNotSet,
+        EndpointNotSet,
+        EndpointNotSet,
+        EndpointSet,
+    >,
+> {
     // Create an OAuth2 client by specifying the client ID, client secret, authorization URL and
     // token URL.
+    // Set the URL the user will be redirected to after the authorization process.
     let client = oauth2::Client::new(ClientId::new(PS_CLIENT_ID.to_string()))
         .set_auth_uri(AuthUrl::new(PS_CLI_LOGIN_URL.to_string())?)
         .set_token_uri(TokenUrl::new(PS_TOKEN_URL.to_string())?)
         .set_redirect_uri(RedirectUrl::new(DEFAULT_REDIRECT_URL.to_string())?);
-    // Set the URL the user will be redirected to after the authorization process.
+    Ok(client)
+}
 
+impl oauth2::ExtraTokenFields for ExtraTokenFields {}
+#[defun(user_ptr)]
+pub fn begin() -> emacs::Result<Option<PendingAuth>> {
+    let client = mk_client()?;
     // Generate a PKCE challenge.
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 

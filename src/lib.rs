@@ -226,5 +226,8 @@ fn source_query<'e>(
 emacs::plugin_is_GPL_compatible!();
 #[emacs::module(name = "polarsignals-module")]
 fn init(_: &Env) -> emacs::Result<()> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("failed to install default CryptoProvider");
     Ok(())
 }
